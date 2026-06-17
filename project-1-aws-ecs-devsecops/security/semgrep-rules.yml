@@ -1,0 +1,14 @@
+rules:
+  - id: hardcoded-secret
+    patterns:
+      - pattern: $KEY = "sk-..."
+    message: Potential hardcoded API key detected
+    languages: [python]
+    severity: ERROR
+
+  - id: subprocess-shell-true
+    patterns:
+      - pattern: subprocess.check_output(..., shell=True, ...)
+    message: Command execution with shell=True is dangerous
+    languages: [python]
+    severity: WARNING

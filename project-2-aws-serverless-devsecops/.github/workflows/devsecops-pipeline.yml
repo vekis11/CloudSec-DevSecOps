@@ -1,0 +1,170 @@
+name: DevSecOps Pipeline - Serverless
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'project-2-aws-serverless-devsecops/**'
+      - '.github/workflows/serverless-devsecops-pipeline.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'project-2-aws-serverless-devsecops/**'
+
+permissions:
+  contents: read
+  id-token: write
+  security-events: write
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  LAMBDA_FUNCTION: serverless-devsecops-api
+  S3_BUCKET: ${{ vars.S3_ARTIFACTS_BUCKET }}
+
+jobs:
+  secret-scan:
+    name: Secret Scan (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  sast-bandit:
+    name: SAST (Bandit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Bandit
+        run: pip install bandit[toml]
+
+      - name: Run Bandit
+        run: |
+          bandit -r project-2-aws-serverless-devsecops/app \
+            -f sarif -o bandit.sarif || true
+          bandit -r project-2-aws-serverless-devsecops/app -ll
+
+      - name: Upload Bandit SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: bandit.sarif
+          category: bandit-sast
+
+  sast-semgrep:
+    name: SAST (Semgrep)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: semgrep/semgrep-action@v1
+        with:
+          config: p/python
+
+  sca:
+    name: SCA (Trivy + pip-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: pip-audit
+        run: |
+          pip install pip-audit
+          pip-audit -r project-2-aws-serverless-devsecops/app/requirements.txt
+
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: project-2-aws-serverless-devsecops/app
+          scanners: vuln,license
+          severity: CRITICAL,HIGH
+          exit-code: 1
+
+  iac-scan:
+    name: IaC Scan (Checkov + tfsec + KICS)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: project-2-aws-serverless-devsecops/terraform
+          framework: terraform
+          soft_fail: false
+
+      - name: tfsec
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: project-2-aws-serverless-devsecops/terraform
+
+      - name: KICS IaC scan
+        uses: checkmarx/kics-github-action@v2.1.13
+        with:
+          path: project-2-aws-serverless-devsecops/terraform
+          ignore_on_exit: results
+          output_paths: kics-results.json
+
+  package-and-deploy:
+    name: Package and Deploy Lambda
+    runs-on: ubuntu-latest
+    needs: [secret-scan, sast-bandit, sast-semgrep, sca, iac-scan]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies into package
+        working-directory: project-2-aws-serverless-devsecops/app
+        run: |
+          pip install -r requirements.txt -t package/
+          cp lambda_function.py package/
+
+      - name: Create deployment zip
+        working-directory: project-2-aws-serverless-devsecops/app
+        run: |
+          cd package
+          zip -r ../lambda_deploy.zip .
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_SERVERLESS }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Upload artifact to S3
+        run: |
+          aws s3 cp project-2-aws-serverless-devsecops/app/lambda_deploy.zip \
+            s3://${{ env.S3_BUCKET }}/lambda/lambda_deploy-${{ github.sha }}.zip
+
+      - name: Deploy to Lambda
+        run: |
+          aws lambda update-function-code \
+            --function-name ${{ env.LAMBDA_FUNCTION }} \
+            --zip-file fileb://project-2-aws-serverless-devsecops/app/lambda_deploy.zip
+
+      - name: Wait for Lambda update
+        run: |
+          aws lambda wait function-updated \
+            --function-name ${{ env.LAMBDA_FUNCTION }}
+
+      - name: Smoke test
+        run: |
+          URL=$(aws apigateway get-rest-apis --query "items[?name=='serverless-devsecops-api'].id" --output text)
+          STAGE_URL="https://${URL}.execute-api.${{ env.AWS_REGION }}.amazonaws.com/prod/health"
+          curl -sf "$STAGE_URL"

@@ -1,0 +1,14 @@
+rules:
+  - id: hardcoded-debug-token
+    patterns:
+      - pattern: const $VAR = 'debug-...'
+    message: Hardcoded debug token detected
+    languages: [javascript]
+    severity: ERROR
+
+  - id: prototype-pollution
+    patterns:
+      - pattern: Object.assign(..., $REQ.body.__proto__)
+    message: Potential prototype pollution
+    languages: [javascript]
+    severity: WARNING

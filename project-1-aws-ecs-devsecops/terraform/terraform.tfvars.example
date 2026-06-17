@@ -1,0 +1,5 @@
+github_org   = "YOUR_GITHUB_USERNAME"
+github_repo  = "ecs-devsecops-demo"
+aws_region   = "us-east-1"
+environment  = "dev"
+project_name = "ecs-devsecops"

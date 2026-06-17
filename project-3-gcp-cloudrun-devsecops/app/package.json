@@ -1,0 +1,17 @@
+{
+  "name": "gcp-cloudrun-devsecops",
+  "version": "1.0.0",
+  "description": "Sample Express API for GCP Cloud Run DevSecOps lab",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/health.test.js"
+  },
+  "dependencies": {
+    "express": "4.18.2",
+    "helmet": "7.1.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

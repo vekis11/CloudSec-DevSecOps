@@ -1,0 +1,5 @@
+github_org   = "YOUR_GITHUB_USERNAME"
+github_repo  = "serverless-devsecops-demo"
+aws_region   = "us-east-1"
+environment  = "dev"
+project_name = "serverless-devsecops"

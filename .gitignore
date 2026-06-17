@@ -1,0 +1,46 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+terraform.tfvars
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform.lock.hcl
+
+# Lambda build artifacts
+lambda_package.zip
+lambda_deploy.zip
+**/app/package/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Security scan outputs
+*.sarif
+kics-results.json
+bandit.sarif
+trivy-*.sarif
+checkov.sarif
+
+# Secrets
+.env
+*.pem
+credentials.json
