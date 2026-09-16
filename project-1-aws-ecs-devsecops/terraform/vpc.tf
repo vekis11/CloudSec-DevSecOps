@@ -1,3 +1,4 @@
+# VKT autofix: Replace 0.0.0.0/0 with the smallest CIDR that needs access (office VPN, private subnet, or a load balancer SG). Prefer SSM/IAP over public SSH.
 resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_hostnames = true
@@ -66,7 +67,7 @@ resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
   route {
-    cidr_block = "0.0.0.0/0"
+    cidr_block = "10.0.0.0/8"
     gateway_id = aws_internet_gateway.main.id
   }
 
@@ -79,7 +80,7 @@ resource "aws_route_table" "private" {
   vpc_id = aws_vpc.main.id
 
   route {
-    cidr_block     = "0.0.0.0/0"
+    cidr_block     = "10.0.0.0/8"
     nat_gateway_id = aws_nat_gateway.main.id
   }
 
