@@ -1,3 +1,4 @@
+# VKT autofix: Replace 0.0.0.0/0 with the smallest CIDR that needs access (office VPN, private subnet, or a load balancer SG). Prefer SSM/IAP over public SSH.
 resource "aws_security_group" "alb" {
   name        = "${var.project_name}-alb-sg"
   description = "ALB security group"
@@ -8,14 +9,14 @@ resource "aws_security_group" "alb" {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["10.0.0.0/8"]
   }
 
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["10.0.0.0/8"]
   }
 
   tags = {
@@ -40,7 +41,7 @@ resource "aws_security_group" "ecs_tasks" {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["10.0.0.0/8"]
   }
 
   tags = {
